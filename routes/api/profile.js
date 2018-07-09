@@ -3,6 +3,9 @@ const router = express.Router();
 const mongoose = require("mongoose");
 const passport = require("passport");
 
+// Load Validation
+const validatedProfileInput = require("../../validation/profile");
+
 // Load Profile Model
 const Profile = require("../../models/Profile");
 // Load User Model
@@ -25,13 +28,15 @@ router.get(
   passport.authenticate("jwt", { session: false }),
   (req, res) => {
     const errors = {};
-    Profile.findOne({ user: req.user.id }).then(profile => {
-      if (!profile) {
-        errors.noProfile = "There is no profile for the user";
-        return res.status(404).json({ errors });
-      }
-      res.json(profile).catch(err => res.status(404).json(err));
-    });
+    Profile.findOne({ user: req.user.id })
+      .populate("user", ["name", "avatar"])
+      .then(profile => {
+        if (!profile) {
+          errors.noProfile = "There is no profile for the user";
+          return res.status(404).json({ errors });
+        }
+        res.json(profile).catch(err => res.status(404).json(err));
+      });
   }
 );
 
@@ -42,6 +47,12 @@ router.post(
   "/",
   passport.authenticate("jwt", { session: false }),
   (req, res) => {
+    const { errors, isValid } = validatedProfileInput(req.body);
+    // Check Validation
+    if (!isValid) {
+      return res.status(400).json(errors);
+    }
+
     // Get fields
     const profileFields = {};
     profileFields.user = req.user.id;
@@ -59,6 +70,7 @@ router.post(
     }
     // Social
     profileFields.social = {};
+    if (req.body.youtube) profileFields.social.twitter = req.body.twitter;
     if (req.body.youtube) profileFields.social.youtube = req.body.youtube;
     if (req.body.facebook) profileFields.social.facebook = req.body.facebook;
     if (req.body.linkedin) profileFields.social.linkedin = req.body.linkedin;
